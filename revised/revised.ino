@@ -9,7 +9,7 @@ Adafruit_MPU6050 mpu;
 unsigned long lastTime = 0;
 
 void setup(void) {
-  Serial.begin(115200);
+  Serial.begin(230400);
   
   if (!mpu.begin()) {
     Serial.println("Failed to find MPU6050 chip");
@@ -38,31 +38,11 @@ void loop() {
   float accelX = a.acceleration.x;
   float accelY = a.acceleration.y;
   float accelZ = a.acceleration.z;
-    
-  // Update velocity (integrate acceleration)
-  // velX += accelX * dt;
-  // velY += accelY * dt;
-  // velZ += accelZ * dt;
-  
-  // If velocity is very small, zero it out completely
-  // if (abs(velX) < 0.05) velX = 0;
-  // if (abs(velY) < 0.05) velY = 0;
-  // if (abs(velZ) < 0.05) velZ = 0;
-    
+
   // Output tracking data
   Serial.print(accelX, 3);
   Serial.print(",");
   Serial.print(accelY, 3);
   Serial.print(",");
   Serial.println(accelZ, 3);
-  delay(1);  
 }
-
-// void printTrackingData(float accelX, float accelY, float accelZ) {
-//   Serial.print("ACC:");
-//   Serial.print(velX, 3);
-//   Serial.print(",");
-//   Serial.print(velY, 3);
-//   Serial.print(",");
-//   Serial.println(velZ, 3);
-// }

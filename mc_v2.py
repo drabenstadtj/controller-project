@@ -1,8 +1,9 @@
 import serial
 import serial.tools.list_ports
-import pyautogui
-import re
+from pynput.mouse import Controller
+import threading
 import time
+import pyautogui  # For getting screen size
 
 # Auto-detect Arduino port
 def find_arduino_port():
@@ -12,30 +13,32 @@ def find_arduino_port():
             return port.device
     return None
 
-BAUD_RATE = 115200
+BAUD_RATE = 230400
 
-# TUNING PARAMETERS
-SENSITIVITY_X = 200        # Side-to-side sensitivity (increased)
-SENSITIVITY_Y = 200       # Up-down sensitivity
-DEADZONE = 0           # Lower deadzone for better responsiveness
-SMOOTHING_ALPHA = 0.3    # Lower = smoother (0.1-0.3 range)
-MIN_MOVEMENT = 1          # Minimum pixels to move (reduces micro-jitter)
+# TUNING PARAMETERS FOR GAME CONTROL
+SENSITIVITY_X = 300  # How far cursor moves from center per G
+SENSITIVITY_Y = 300
+DEADZONE = 0.15  # Larger deadzone - hand at rest = cursor at center
+MAX_OFFSET = 600  # Maximum pixels from center (joystick radius)
+SMOOTHING = 0.3  # Smooth cursor movement (0=raw, 1=very smooth)
 
 calibration_offset_x = 0
 calibration_offset_y = 0
 calibration_offset_z = 0
-
 calibrated = False
 
-pyautogui.FAILSAFE = False
+# Use pynput instead of pyautogui
+mouse = Controller()
 
 # Smoothing state
-smooth_vel_x = 0.0
-smooth_vel_y = 0.0
-accumulated_x = 0.0
-accumulated_y = 0.0
+smooth_x = 0.0
+smooth_y = 0.0
+mouse_enabled = True
 
-last_time = 0
+# Get screen dimensions for centering
+screen_width, screen_height = pyautogui.size()
+screen_center_x = screen_width // 2
+screen_center_y = screen_height // 2
 
 print("Searching for Arduino...")
 SERIAL_PORT = find_arduino_port()
@@ -52,26 +55,22 @@ print("Connecting...")
 ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
 time.sleep(2)
 
-mouse_enabled = True
-last_move_time = time.time()
-
 def apply_deadzone(value, deadzone):
     """Apply deadzone with smooth transition"""
     if abs(value) < deadzone:
         return 0
-    # Smooth scaling after deadzone
     sign = 1 if value > 0 else -1
     magnitude = (abs(value) - deadzone) / (1 - deadzone)
     return sign * magnitude
 
-
 def read_serial():
     """Thread to continuously read from Arduino"""
     global mouse_enabled, SENSITIVITY_X, SENSITIVITY_Y, DEADZONE
-    global smooth_vel_x, smooth_vel_y, accumulated_x, accumulated_y, last_move_time
+    global smooth_x, smooth_y
     global calibrated, calibration_offset_x, calibration_offset_y, calibration_offset_z
+    global MAX_OFFSET, SMOOTHING, screen_center_x, screen_center_y
     
-    calib_readings_count = 1000
+    calib_readings_count = 500  # Reduced for faster calibration
     cumulative_x = 0
     cumulative_y = 0
     cumulative_z = 0
@@ -79,18 +78,14 @@ def read_serial():
     while True:
         try:
             if ser.in_waiting > 0:
-                # Use errors='ignore' to skip bad bytes
                 line = ser.readline().decode('utf-8', errors='ignore').strip()
                 
-                # Skip empty lines or invalid data
                 if not line or len(line) < 5:
                     continue
                 
-                # Try to parse the data
                 try:
                     accel_match = line.split(',')
                     
-                    # Validate we have 3 values
                     if len(accel_match) != 3:
                         continue
                     
@@ -99,7 +94,6 @@ def read_serial():
                     z_val = float(accel_match[2])
                     
                 except (ValueError, IndexError):
-                    # Skip malformed data
                     continue
                 
                 # Calibration phase
@@ -113,59 +107,68 @@ def read_serial():
                         if calib_readings_count % 100 == 0:
                             print(f"Calibrating... {calib_readings_count} readings left")
                     else:
-                        calibration_offset_x = cumulative_x / 1000
-                        calibration_offset_y = cumulative_y / 1000
-                        calibration_offset_z = cumulative_z / 1000
+                        calibration_offset_x = cumulative_x / 500
+                        calibration_offset_y = cumulative_y / 500
+                        calibration_offset_z = cumulative_z / 500
                         calibrated = True
                         print(f"Calibration complete! Offsets: X={calibration_offset_x:.3f}, Y={calibration_offset_y:.3f}, Z={calibration_offset_z:.3f}")
                         print("Mouse control active!")
                 
-                # Mouse control phase
+                # Mouse control phase - JOYSTICK MODE
                 elif mouse_enabled:
-                    current_time = time.time()
-                    delta_time = (current_time - last_move_time)
-                    last_move_time = current_time
-                    
-                    accelX = x_val - calibration_offset_x
-                    accelY = y_val - calibration_offset_y
-                    
-                    velX = accelX * delta_time
-                    velY = accelY * delta_time
-                    
+                    # Get tilt angles (acceleration values represent tilt)
+                    tilt_x = (x_val - calibration_offset_x)
+                    tilt_y = (y_val - calibration_offset_y)
+
                     # Apply deadzone
-                    velX = apply_deadzone(velX, DEADZONE)
-                    velY = apply_deadzone(velY, DEADZONE)
-                    
-                    # Exponential smoothing
-                    smooth_vel_x = SMOOTHING_ALPHA * velX + (1 - SMOOTHING_ALPHA) * smooth_vel_x
-                    smooth_vel_y = SMOOTHING_ALPHA * velY + (1 - SMOOTHING_ALPHA) * smooth_vel_y
-                    
-                    # Apply sensitivities
-                    move_x = smooth_vel_x * SENSITIVITY_X * delta_time
-                    move_y = smooth_vel_y * SENSITIVITY_Y * delta_time
-                    
-                    # Accumulate sub-pixel movements
-                    accumulated_x += move_x
-                    accumulated_y += move_y
-                    
-                    # Only move when we have at least MIN_MOVEMENT pixels
-                    pixel_x = 0
-                    pixel_y = 0
-                    
-                    if abs(accumulated_x) >= MIN_MOVEMENT:
-                        pixel_x = int(accumulated_x)
-                        accumulated_x -= pixel_x
-                    
-                    if abs(accumulated_y) >= MIN_MOVEMENT:
-                        pixel_y = int(accumulated_y)
-                        accumulated_y -= pixel_y
-                    
-                    # Move the mouse    
-                    if pixel_x != 0 or pixel_y != 0:
-                        pyautogui.moveRel(pixel_x, pixel_y, 0)
+                    if abs(tilt_x) < DEADZONE:
+                        tilt_x = 0
+                    else:
+                        # Scale after deadzone
+                        sign = 1 if tilt_x > 0 else -1
+                        tilt_x = sign * (abs(tilt_x) - DEADZONE)
+
+                    if abs(tilt_y) < DEADZONE:
+                        tilt_y = 0
+                    else:
+                        sign = 1 if tilt_y > 0 else -1
+                        tilt_y = sign * (abs(tilt_y) - DEADZONE)
+
+                    # Calculate target cursor position relative to screen center
+                    target_x = tilt_x * SENSITIVITY_X
+                    target_y = tilt_y * SENSITIVITY_Y
+
+                    # Clamp to maximum offset (joystick radius)
+                    distance = (target_x**2 + target_y**2)**0.5
+                    if distance > MAX_OFFSET:
+                        scale = MAX_OFFSET / distance
+                        target_x *= scale
+                        target_y *= scale
+
+                    # Apply smoothing for stability
+                    smooth_x = SMOOTHING * smooth_x + (1 - SMOOTHING) * target_x
+                    smooth_y = SMOOTHING * smooth_y + (1 - SMOOTHING) * target_y
+
+                    # Calculate absolute screen position
+                    target_screen_x = screen_center_x + int(smooth_x)
+                    target_screen_y = screen_center_y + int(smooth_y)
+
+                    # Set cursor to absolute position
+                    mouse.position = (target_screen_x, target_screen_y)
                         
         except Exception as e:
             print(f"Read error: {e}")
-            time.sleep(0.1)
+            time.sleep(0.01)
 
-read_serial()
+# Run in thread
+serial_thread = threading.Thread(target=read_serial, daemon=True)
+serial_thread.start()
+
+print("Mouse controller running. Press Ctrl+C to exit.")
+
+try:
+    while True:
+        time.sleep(1)
+except KeyboardInterrupt:
+    print("\nExiting...")
+    ser.close()
