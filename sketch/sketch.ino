@@ -25,7 +25,7 @@ const float VELOCITY_DECAY = 0.70;      // Increased from 0.95 - faster return t
 const float VELOCITY_LIMIT = 2.0;       // Cap maximum velocity to prevent spikes
 
 void setup(void) {
-  Serial.begin(115200);
+  Serial.begin(2000000);
   
   if (!mpu.begin()) {
     Serial.println("Failed to find MPU6050 chip");
@@ -106,7 +106,7 @@ void loop() {
     printTrackingData(accelX, accelY, accelZ);
   }
   
-  delay(10);  // 50Hz update rate - slower but smoother
+  delay(1);  
 }
 
 void handleCommand(char cmd) {
@@ -178,12 +178,12 @@ void resetPosition() {
 
 void printTrackingData(float accelX, float accelY, float accelZ) {
   // Only print if there's actual movement to reduce serial traffic
-  if (abs(velX) > 0.01 || abs(velY) > 0.01 || abs(velZ) > 0.01) {
-    Serial.print("VEL:");
-    Serial.print(velX, 3);
-    Serial.print(",");
-    Serial.print(velY, 3);
-    Serial.print(",");
-    Serial.println(velZ, 3);
-  }
+  // if (abs(velX) > 0.01 || abs(velY) > 0.01 || abs(velZ) > 0.01) {
+  Serial.print("VEL:");
+  Serial.print(velX, 3);
+  Serial.print(",");
+  Serial.print(velY, 3);
+  Serial.print(",");
+  Serial.println(velZ, 3);
+  // }
 }

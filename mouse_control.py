@@ -14,13 +14,13 @@ def find_arduino_port():
             return port.device
     return None
 
-BAUD_RATE = 115200
+BAUD_RATE = 2000000
 
 # TUNING PARAMETERS
-SENSITIVITY_X = 150        # Side-to-side sensitivity (increased)
-SENSITIVITY_Y = 150        # Up-down sensitivity
-DEADZONE = 0.20           # Lower deadzone for better responsiveness
-SMOOTHING_ALPHA = 0.15    # Lower = smoother (0.1-0.3 range)
+SENSITIVITY_X = 200        # Side-to-side sensitivity (increased)
+SENSITIVITY_Y = 200       # Up-down sensitivity
+DEADZONE = 0           # Lower deadzone for better responsiveness
+SMOOTHING_ALPHA = 0.3    # Lower = smoother (0.1-0.3 range)
 MIN_MOVEMENT = 1          # Minimum pixels to move (reduces micro-jitter)
 
 pyautogui.FAILSAFE = False
@@ -47,10 +47,10 @@ ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
 time.sleep(2)
 
 print("\n" + "="*50)
-print("Connected! 3D Motion Controller - SMOOTH v2")
+print("Connected.")
 print("="*50)
 print("\nCommands:")
-print("  c - Calibrate (HOLD VERY STILL)")
+print("  c - Calibrate")
 print("  s - Start/Stop tracking")
 print("  r - Reset")
 print("  x+ / x- - Adjust X sensitivity (side-to-side)")
@@ -119,9 +119,9 @@ def read_serial():
                             pixel_y = int(accumulated_y)
                             accumulated_y -= pixel_y
                         
-                        # Move the mouse
+                        # Move the mouse    
                         if pixel_x != 0 or pixel_y != 0:
-                            pyautogui.moveRel(pixel_x, pixel_y)
+                            pyautogui.moveRel(pixel_x, pixel_y, 0)
                             
                 else:
                     print(line)
@@ -130,7 +130,6 @@ def read_serial():
             time.sleep(0.1)
 
 def send_command():
-    """Main thread to handle user input"""
     global mouse_enabled, SENSITIVITY_X, SENSITIVITY_Y, DEADZONE
     global smooth_vel_x, smooth_vel_y, accumulated_x, accumulated_y
     
