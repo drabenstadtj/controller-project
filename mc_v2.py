@@ -1,6 +1,6 @@
 import serial
 import serial.tools.list_ports
-from pynput.mouse import Controller
+from pynput.mouse import Controller, Button
 import threading
 import time
 import pyautogui  # For getting screen size
@@ -35,6 +35,10 @@ smooth_x = 0.0
 smooth_y = 0.0
 mouse_enabled = True
 
+# Button state tracking
+btn1_pressed = False
+btn2_pressed = False
+
 # Get screen dimensions for centering
 screen_width, screen_height = pyautogui.size()
 screen_center_x = screen_width // 2
@@ -55,22 +59,15 @@ print("Connecting...")
 ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
 time.sleep(2)
 
-def apply_deadzone(value, deadzone):
-    """Apply deadzone with smooth transition"""
-    if abs(value) < deadzone:
-        return 0
-    sign = 1 if value > 0 else -1
-    magnitude = (abs(value) - deadzone) / (1 - deadzone)
-    return sign * magnitude
-
 def read_serial():
-    """Thread to continuously read from Arduino"""
+    """continuously read from arduino"""
     global mouse_enabled, SENSITIVITY_X, SENSITIVITY_Y, DEADZONE
     global smooth_x, smooth_y
     global calibrated, calibration_offset_x, calibration_offset_y, calibration_offset_z
     global MAX_OFFSET, SMOOTHING, screen_center_x, screen_center_y
+    global btn1_pressed, btn2_pressed
     
-    calib_readings_count = 500  # Reduced for faster calibration
+    calib_readings_count = 500  
     cumulative_x = 0
     cumulative_y = 0
     cumulative_z = 0
@@ -85,14 +82,23 @@ def read_serial():
                 
                 try:
                     accel_match = line.split(',')
-                    
-                    if len(accel_match) != 3:
+
+                    # Support both old format (3 values) and new format (5 values)
+                    if len(accel_match) == 3:
+                        x_val = float(accel_match[0])
+                        y_val = float(accel_match[1])
+                        z_val = float(accel_match[2])
+                        btn1 = 0
+                        btn2 = 0
+                    elif len(accel_match) == 5:
+                        x_val = float(accel_match[0])
+                        y_val = float(accel_match[1])
+                        z_val = float(accel_match[2])
+                        btn1 = int(accel_match[3])
+                        btn2 = int(accel_match[4])
+                    else:
                         continue
-                    
-                    x_val = float(accel_match[0])
-                    y_val = float(accel_match[1])
-                    z_val = float(accel_match[2])
-                    
+
                 except (ValueError, IndexError):
                     continue
                 
@@ -114,7 +120,7 @@ def read_serial():
                         print(f"Calibration complete! Offsets: X={calibration_offset_x:.3f}, Y={calibration_offset_y:.3f}, Z={calibration_offset_z:.3f}")
                         print("Mouse control active!")
                 
-                # Mouse control phase - JOYSTICK MODE
+                # Mouse control phase - JOYSTICK 
                 elif mouse_enabled:
                     # Get tilt angles (acceleration values represent tilt)
                     tilt_x = (x_val - calibration_offset_x)
@@ -145,7 +151,7 @@ def read_serial():
                         target_x *= scale
                         target_y *= scale
 
-                    # Apply smoothing for stability
+                    # Apply smoothing
                     smooth_x = SMOOTHING * smooth_x + (1 - SMOOTHING) * target_x
                     smooth_y = SMOOTHING * smooth_y + (1 - SMOOTHING) * target_y
 
@@ -155,6 +161,23 @@ def read_serial():
 
                     # Set cursor to absolute position
                     mouse.position = (target_screen_x, target_screen_y)
+
+                    # Handle button presses
+                    # Button 1 - Left click
+                    if btn1 == 1 and not btn1_pressed:
+                        mouse.press(Button.left)
+                        btn1_pressed = True
+                    elif btn1 == 0 and btn1_pressed:
+                        mouse.release(Button.left)
+                        btn1_pressed = False
+
+                    # Button 2 - Right click
+                    if btn2 == 1 and not btn2_pressed:
+                        mouse.press(Button.right)
+                        btn2_pressed = True
+                    elif btn2 == 0 and btn2_pressed:
+                        mouse.release(Button.right)
+                        btn2_pressed = False
                         
         except Exception as e:
             print(f"Read error: {e}")
