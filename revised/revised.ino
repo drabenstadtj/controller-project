@@ -8,8 +8,16 @@ Adafruit_MPU6050 mpu;
 // Timing
 unsigned long lastTime = 0;
 
+// BUTTON CONFIGURATION
+const int BUTTON1_PIN = 2;  // Change to your actual pins
+const int BUTTON2_PIN = 3;
+
 void setup(void) {
   Serial.begin(230400);
+  
+  // Setup button pins with internal pullups
+  pinMode(BUTTON1_PIN, INPUT_PULLUP);
+  pinMode(BUTTON2_PIN, INPUT_PULLUP);
   
   if (!mpu.begin()) {
     Serial.println("Failed to find MPU6050 chip");
@@ -33,16 +41,24 @@ void loop() {
   unsigned long currentTime = millis();
   float dt = (currentTime - lastTime) / 1000.0;
   lastTime = currentTime;
-
+  
   // Remove calibration offset and gravity
   float accelX = a.acceleration.x;
   float accelY = a.acceleration.y;
   float accelZ = a.acceleration.z;
-
-  // Output tracking data
+  
+  // Read buttons (inverted because of pullup - LOW = pressed)
+  bool btn1 = !digitalRead(BUTTON1_PIN);
+  bool btn2 = !digitalRead(BUTTON2_PIN);
+  
+  // Output tracking data with button flags
   Serial.print(accelX, 3);
   Serial.print(",");
   Serial.print(accelY, 3);
   Serial.print(",");
-  Serial.println(accelZ, 3);
-}
+  Serial.print(accelZ, 3);
+  Serial.print(",");
+  Serial.print(btn1 ? "1" : "0");
+  Serial.print(",");
+  Serial.println(btn2 ? "1" : "0");
+} 
