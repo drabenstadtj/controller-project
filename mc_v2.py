@@ -18,9 +18,9 @@ BAUD_RATE = 230400
 # PARAMETERS
 SENSITIVITY_X = 300  # How far cursor moves from center per G
 SENSITIVITY_Y = 300
-DEADZONE = 0.15  # Larger deadzone - hand at rest = cursor at center
+DEADZONE = 0.2  # Larger deadzone - hand at rest = cursor at center
 MAX_OFFSET = 600  # Maximum pixels from center (joystick radius)
-SMOOTHING = 0.3  # Smooth cursor movement (0=raw, 1=very smooth)
+SMOOTHING = 0.7  # Smooth cursor movement (0=raw, 1=very smooth)
 
 calibration_offset_x = 0
 calibration_offset_y = 0
@@ -139,7 +139,7 @@ def read_serial():
                         btn2_pressed = False
 
                     # Get tilt angles (acceleration values represent tilt)
-                    tilt_x = (x_val - calibration_offset_x)
+                    tilt_x = -(x_val - calibration_offset_x)  # Flipped X direction
                     tilt_y = (y_val - calibration_offset_y)
 
                     # Apply deadzone
