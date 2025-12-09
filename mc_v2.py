@@ -15,7 +15,7 @@ def find_arduino_port():
 
 BAUD_RATE = 230400
 
-# TUNING PARAMETERS FOR GAME CONTROL
+# PARAMETERS
 SENSITIVITY_X = 300  # How far cursor moves from center per G
 SENSITIVITY_Y = 300
 DEADZONE = 0.15  # Larger deadzone - hand at rest = cursor at center
@@ -27,7 +27,6 @@ calibration_offset_y = 0
 calibration_offset_z = 0
 calibrated = False
 
-# Use pynput instead of pyautogui
 mouse = Controller()
 
 # Smoothing state
@@ -120,8 +119,25 @@ def read_serial():
                         print(f"Calibration complete! Offsets: X={calibration_offset_x:.3f}, Y={calibration_offset_y:.3f}, Z={calibration_offset_z:.3f}")
                         print("Mouse control active!")
                 
-                # Mouse control phase - JOYSTICK 
+                # Mouse control
                 elif mouse_enabled:
+                    # Handle button presses FIRST
+                    # Button 1 - Left click/drag
+                    if btn1 == 1 and not btn1_pressed:
+                        mouse.press(Button.left)
+                        btn1_pressed = True
+                    elif btn1 == 0 and btn1_pressed:
+                        mouse.release(Button.left)
+                        btn1_pressed = False
+
+                    # Button 2 - Right click/drag
+                    if btn2 == 1 and not btn2_pressed:
+                        mouse.press(Button.right)
+                        btn2_pressed = True
+                    elif btn2 == 0 and btn2_pressed:
+                        mouse.release(Button.right)
+                        btn2_pressed = False
+
                     # Get tilt angles (acceleration values represent tilt)
                     tilt_x = (x_val - calibration_offset_x)
                     tilt_y = (y_val - calibration_offset_y)
@@ -159,25 +175,8 @@ def read_serial():
                     target_screen_x = screen_center_x + int(smooth_x)
                     target_screen_y = screen_center_y + int(smooth_y)
 
-                    # Set cursor to absolute position
+                    # Set cursor to absolute position (will drag if button is pressed)
                     mouse.position = (target_screen_x, target_screen_y)
-
-                    # Handle button presses
-                    # Button 1 - Left click
-                    if btn1 == 1 and not btn1_pressed:
-                        mouse.press(Button.left)
-                        btn1_pressed = True
-                    elif btn1 == 0 and btn1_pressed:
-                        mouse.release(Button.left)
-                        btn1_pressed = False
-
-                    # Button 2 - Right click
-                    if btn2 == 1 and not btn2_pressed:
-                        mouse.press(Button.right)
-                        btn2_pressed = True
-                    elif btn2 == 0 and btn2_pressed:
-                        mouse.release(Button.right)
-                        btn2_pressed = False
                         
         except Exception as e:
             print(f"Read error: {e}")
