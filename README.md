@@ -1,22 +1,10 @@
-# 3D Motion Mouse Controller
+## File Breakdown
 
-A joystick-style mouse controller using an MPU6050 accelerometer sensor connected to an Arduino. Tilt the sensor to move the cursor from the screen center, return to neutral to center the cursor.
-
-## Features
-
-- **Joystick-style control**: Cursor position maps to sensor tilt (not movement)
-- **Two button support**: Left/right click and drag operations
-- **Automatic calibration**: Learns neutral position on startup
-- **Smooth movement**: Adjustable sensitivity, deadzone, and smoothing
-- **Plug-and-play**: Auto-detects Arduino serial port
-
-## Hardware Requirements
-
-### Components
-- Arduino (Uno, Nano, or compatible)
-- MPU6050 accelerometer/gyroscope module
-- 2x push buttons
-- USB cable for Arduino connection
+- **`mouse_controllerv1.py`** - Original version using 3D motion tracking
+- **`mouse_controllerv2.py`** - Final version using joystick-style control  
+- **`initial_sketch.ino`** - First Arduino sketch with on-board calculations
+- **`sensor_button_serial.ino`** - Final Arduino firmware (raw sensor data only)
+- **`caterpillar_quest_controller_build/`** - Game build for the controller
 
 ### Wiring Diagram
 
@@ -54,7 +42,7 @@ pip install pyserial pynput pyautogui
 ### 1. Flash Arduino Firmware
 
 1. Open `revised/revised.ino` in Arduino IDE
-2. Install required libraries (see Software Requirements)
+2. Install required libraries
 3. Select your Arduino board and port
 4. Click Upload
 
@@ -68,8 +56,6 @@ The program will:
 1. Auto-detect the Arduino
 2. Calibrate for 500 samples (~2-3 seconds)
 3. Activate mouse control
-
-**Important**: Keep the controller stationary and level during calibration!
 
 ## How It Works
 
@@ -91,7 +77,7 @@ The program will:
 1. Read MPU6050 acceleration (X, Y, Z in m/s²)
 2. Read button states (digital pins 2 and 3)
 3. Transmit CSV line: "accelX,accelY,accelZ,btn1,btn2\n"
-4. Repeat continuously (no delay for minimal latency)
+4. Repeat continuously
 ```
 
 #### Python (mc_v2.py)
@@ -141,7 +127,7 @@ Reduces jitter while maintaining responsiveness:
 ```python
 smooth = α * old_smooth + (1-α) * new_target
 ```
-Where α = SMOOTHING (0.7 by default)
+Where α = SMOOTHING 
 
 #### Circular Boundary
 Cursor is clamped to a circular region around screen center:
@@ -152,42 +138,6 @@ if distance > MAX_OFFSET:
     x *= scale
     y *= scale
 ```
-
-## Configuration
-
-Edit these parameters at the top of `mc_v2.py`:
-
-```python
-# Movement parameters
-SENSITIVITY_X = 300    # Pixels from center per 1G of tilt (horizontal)
-SENSITIVITY_Y = 300    # Pixels from center per 1G of tilt (vertical)
-DEADZONE = 0.2         # Ignore tilts smaller than this (in G's)
-MAX_OFFSET = 600       # Maximum cursor distance from screen center (pixels)
-SMOOTHING = 0.7        # Exponential smoothing (0=none, 1=maximum)
-```
-
-### Tuning Guide
-
-**Cursor too sensitive/fast:**
-- Decrease `SENSITIVITY_X` and `SENSITIVITY_Y` (try 200)
-
-**Cursor not sensitive enough:**
-- Increase `SENSITIVITY_X` and `SENSITIVITY_Y` (try 400)
-
-**Cursor drifts when hand is at rest:**
-- Increase `DEADZONE` (try 0.25 or 0.3)
-- Re-calibrate by restarting the program
-
-**Cursor is jittery/shaky:**
-- Increase `SMOOTHING` (try 0.8 or 0.9)
-- Note: Higher values add more lag
-
-**Cursor feels laggy/sluggish:**
-- Decrease `SMOOTHING` (try 0.5 or 0.6)
-- Note: Lower values increase jitter
-
-**Cursor can't reach screen edges:**
-- Increase `MAX_OFFSET` (try 800 or 1000)
 
 ## Usage
 
@@ -206,133 +156,4 @@ SMOOTHING = 0.7        # Exponential smoothing (0=none, 1=maximum)
   - Click: Press and release quickly
   - Drag: Press, move cursor, then release
 
-### Tips
-- **Smooth movements**: Move slowly and steadily
-- **Precision work**: Use lower sensitivity settings
-- **Gaming**: Use higher sensitivity, lower smoothing
-- **Recalibrate**: Restart program if cursor drifts
 
-## Troubleshooting
-
-### Arduino not detected
-```
-Error: Arduino not found!
-```
-**Solutions:**
-- Check USB cable connection
-- Verify Arduino drivers are installed
-- Try a different USB port
-- Check Arduino IDE can see the port
-
-### Cursor drifts constantly
-**Cause**: Controller wasn't level during calibration
-
-**Solution**: Restart program with controller on flat surface
-
-### Right click button doesn't work
-**Solutions:**
-- Check button wiring to pin 3
-- Test with multimeter (should show LOW when pressed)
-- Swap button pins in Arduino code to test
-
-### Cursor movement is reversed
-**Solution**: Edit `mc_v2.py` line 215:
-```python
-# Change this:
-tilt_x = -(x_val - calibration_offset_x)
-
-# To this (remove the minus):
-tilt_x = (x_val - calibration_offset_x)
-
-# Or flip Y axis:
-tilt_y = -(y_val - calibration_offset_y)
-```
-
-### Serial communication errors
-```
-Error: Read error: ...
-```
-**Solutions:**
-- Check baud rate matches (230400) in both files
-- Try unplugging and reconnecting Arduino
-- Close Arduino Serial Monitor if open
-- Restart the Python program
-
-### MPU6050 not found
-```
-Error: Failed to find MPU6050 chip
-```
-**Solutions:**
-- Check I2C wiring (SDA, SCL)
-- Verify MPU6050 has power (3.3V or 5V)
-- Try I2C scanner sketch to detect address
-- Check for loose connections
-
-## Technical Details
-
-### Serial Protocol
-- **Baud rate**: 230400 (high speed for low latency)
-- **Format**: CSV (Comma-Separated Values)
-- **Line ending**: `\n` (newline)
-- **Data order**: `accelX,accelY,accelZ,btn1,btn2`
-- **Update rate**: As fast as possible (~500-1000 Hz)
-
-### Acceleration Values
-- **Units**: m/s² (meters per second squared)
-- **Typical range**: -10 to +10 m/s²
-- **Gravity**: ~9.81 m/s² (always present on one axis)
-- **1G of tilt**: ~9.81 m/s² change in that direction
-
-### Calibration
-- **Sample count**: 500 readings
-- **Duration**: 2-3 seconds
-- **Purpose**: Learn neutral position offset
-- **Stored**: X, Y, Z calibration offsets
-- **Applied**: Subtracted from all future readings
-
-### Coordinate System
-```
-Arduino MPU6050:          Python Screen:
-    Y (forward)              Y (down)
-    ↑                        ↓
-    |                        |
-    +----> X (right)         +----> X (right)
-   /                        /
-  Z (up)                   Z (into screen)
-```
-
-Note: X axis is flipped in software for intuitive control
-
-## File Structure
-
-```
-controller-project/
-├── mc_v2.py                # Python mouse controller (main program)
-├── revised/
-│   └── revised.ino         # Arduino firmware
-├── README.md               # This file
-└── sketch/                 # Legacy/alternative sketches
-    └── sketch.ino
-```
-
-## Credits
-
-- **MPU6050**: Adafruit MPU6050 library
-- **Mouse control**: pynput library
-- **Serial communication**: pyserial library
-
-## License
-
-This project is open source and available for personal and educational use.
-
-## Future Improvements
-
-Possible enhancements:
-- [ ] Gyroscope integration for rotation sensing
-- [ ] Middle mouse button support
-- [ ] Scroll wheel emulation (twist gesture)
-- [ ] Multiple sensitivity profiles
-- [ ] GUI for parameter adjustment
-- [ ] Bluetooth wireless connection
-- [ ] Gesture recognition (shake to recalibrate)
-- [ ] Battery-powered portable version
